@@ -162,17 +162,17 @@ tf.disable_v2_behavior()；
 ##### 如果你想保证模型的精准度更高，请将 bridge.py 中的代码，改为以下代码 (block set to 1， and input length set to 12)
 * 新版STGIN映射到STGIN_4权重weights/参数上，以此类推，STGIN_3映射到STGIN_7权重weights/参数上，  
             # Blocks  
-            for i in range(self.num_blocks):  
-                with tf.variable_scope("num_blocks_{}".format(i)):  
-                    # Multihead Attention  
-                    X_Q = multihead_attention(queries=X_Q, # future time steps  
-                                            keys=X_P,    # historical time steps  
-                                            values= X,   # historical inputs
-                                            num_units=self.hidden_units,  
-                                            num_heads= self.num_heads, # self.num_heads  
-                                            dropout_rate=self.dropout_rate,  
-                                            is_training=self.is_training)  
-                    # Feed Forward  
-                    X_Q = feedforward(X_Q, num_units=[4 * self.hidden_units, self.hidden_units])  
-        X = tf.reshape(X_Q,shape=[-1, self.site_num, self.output_length, self.hidden_units])  
+                for i in range(self.num_blocks):  
+                        with tf.variable_scope("num_blocks_{}".format(i)):  
+                            # Multihead Attention  
+                            X_Q = multihead_attention(queries=X_Q, # future time steps  
+                                                   keys=X_P,    # historical time steps  
+                                                 values= X,   # historical inputs
+                                                   num_units=self.hidden_units,  
+                                                  num_heads= self.num_heads, # self.num_heads  
+                                                 dropout_rate=self.dropout_rate,  
+                                                    is_training=self.is_training)  
+                         # Feed Forward  
+                         X_Q = feedforward(X_Q, num_units=[4 * self.hidden_units, self.hidden_units])  
+             X = tf.reshape(X_Q,shape=[-1, self.site_num, self.output_length, self.hidden_units])  
 ---
