@@ -34,6 +34,7 @@ import numpy as np
 import os
 import argparse
 import datetime
+import csv
 
 tf.reset_default_graph()
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -335,6 +336,15 @@ class Model(object):
         test_next = iterate_test.next_batch(batch_size=self.para.batch_size, epoch=1, is_training=False)
         max_s, min_s = iterate_test.max_s['speed'], iterate_test.min_s['speed']
 
+        file = open('results/'+str(self.para.model_name)+'.csv', 'w', encoding='utf-8')
+        writer = csv.writer(file)
+        writer.writerow(
+            ['road'] + ['day_' + str(i) for i in range(self.para.output_length)] + ['hour_' + str(i) for i in range(
+                self.para.output_length)] +
+            ['minute_' + str(i) for i in range(self.para.output_length)] + ['label_' + str(i) for i in
+                                                                             range(self.para.output_length)] +
+            ['predict_' + str(i) for i in range(self.para.output_length)])
+
         # '''
         for i in range(int((iterate_test.length // self.para.site_num
                             - iterate_test.length // self.para.site_num * iterate_test.divide_ratio
@@ -348,12 +358,20 @@ class Model(object):
             feed_dict = construct_feed_dict(x_s, self.adj, label_s, day, hour, minute, x_p, label_p, self.placeholders)
             feed_dict.update({self.placeholders['dropout']: 0.0})
 
-            if i == 0: begin_time = datetime.datetime.now()
+            # if i == 0: begin_time = datetime.datetime.now()
             pre_s = self.sess.run((self.pre), feed_dict=feed_dict)
-            if i == 0:
-                end_t = datetime.datetime.now()
-                total_t = end_t - begin_time
-                print("Total running times is : %f" % total_t.total_seconds())
+
+            for site in range(self.para.site_num):
+                writer.writerow([site]+list(day[self.para.input_length:,0])+
+                                 list(hour[self.para.input_length:,0])+
+                                 list(minute[self.para.input_length:,0]*15)+
+                                 list(np.round(self.re_current(label_s[0][site],max_s,min_s)))+
+                                 list(np.round(self.re_current(pre_s[0][site],max_s,min_s))))
+
+            # if i == 0:
+            #     end_t = datetime.datetime.now()
+            #     total_t = end_t - begin_time
+            #     print("Total running times is : %f" % total_t.total_seconds())
             label_s_list.append(label_s)
             pre_s_list.append(pre_s)
 

@@ -80,7 +80,11 @@ class DataClass(object):
                    data[(low - 2 * 24 * 4) * self.site_num: (low - 2 * 24 * 4 + self.input_length) * self.site_num,5:6],
                    data[(low - 1 * 24 * 4 + self.input_length) * self.site_num: (low - 1 * 24 * 4 + self.input_length*2) * self.site_num,5:6],
                    data[low * self.site_num : (low + self.input_length) * self.site_num, 5:6],
-                   label)
+                   label,
+                   data[low * self.site_num: (low + self.input_length + self.output_length) * self.site_num, 2],
+                   data[low * self.site_num: (low + self.input_length + self.output_length) * self.site_num, 3],
+                   data[low * self.site_num: (low + self.input_length + self.output_length) * self.site_num, 4] // 15
+                   )
             if self.is_training:
                 low += self.step
             else:
@@ -100,7 +104,7 @@ class DataClass(object):
         '''
 
         self.is_training=is_training
-        dataset=tf.data.Dataset.from_generator(self.generator,output_types=(tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32))
+        dataset=tf.data.Dataset.from_generator(self.generator,output_types=(tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.int32, tf.int32, tf.int32))
 
         if self.is_training:
             dataset=dataset.shuffle(buffer_size=int(self.shape[0]//self.hp.site_num * self.divide_ratio-self.input_length-self.output_length)//self.step)

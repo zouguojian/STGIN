@@ -26,6 +26,7 @@ import baseline.astgat.data_next as data_load
 import os
 import argparse
 import datetime
+import csv
 
 tf.reset_default_graph()
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -128,7 +129,7 @@ class Model(object):
         for i in range(int((iterate.length // self.hp.site_num * iterate.divide_ratio - (
                 iterate.input_length + iterate.output_length)) // iterate.step)
                        * self.hp.epoch // self.hp.batch_size):
-            w_1, w_2, d_1, d_2, x, label = self.sess.run(train_next)
+            w_1, w_2, d_1, d_2, x, label,_, _,_ = self.sess.run(train_next)
             features = np.reshape(x, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
             w_1 = np.reshape(w_1, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
             w_2 = np.reshape(w_2, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
@@ -172,12 +173,21 @@ class Model(object):
         max, min = iterate_test.max_dict['speed'], iterate_test.min_dict['speed']
         print(max, min)
 
+        file = open('results/' + str(self.hp.model_name) + '.csv', 'w', encoding='utf-8')
+        writer = csv.writer(file)
+        writer.writerow(
+            ['road'] + ['day_' + str(i) for i in range(self.hp.output_length)] + ['hour_' + str(i) for i in range(
+                self.hp.output_length)] +
+            ['minute_' + str(i) for i in range(self.hp.output_length)] + ['label_' + str(i) for i in
+                                                                            range(self.hp.output_length)] +
+            ['predict_' + str(i) for i in range(self.hp.output_length)])
+
         # '''
         for i in range(int((iterate_test.length // self.hp.site_num
                             - iterate_test.length // self.hp.site_num * iterate_test.divide_ratio
                             - (iterate_test.input_length + iterate_test.output_length)) // iterate_test.output_length)
                        // self.hp.batch_size):
-            w_1, w_2, d_1, d_2, x, label = self.sess.run(test_next)
+            w_1, w_2, d_1, d_2, x, label, day, hour, minute = self.sess.run(test_next)
             features = np.reshape(x, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
             w_1 = np.reshape(w_1, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
             w_2 = np.reshape(w_2, [-1, self.hp.input_length, self.hp.site_num, self.hp.features])
@@ -187,10 +197,22 @@ class Model(object):
             feed_dict.update({self.placeholders['dropout']: 0.0})
             if i == 0: begin_time = datetime.datetime.now()
             pre = self.sess.run((self.pre), feed_dict=feed_dict)
-            if i == 0:
-                end_t = datetime.datetime.now()
-                total_t = end_t - begin_time
-                print("Total running times is : %f" % total_t.total_seconds())
+
+            day = np.reshape(day, [-1, self.hp.site_num])
+            hour = np.reshape(hour, [-1, self.hp.site_num])
+            minute = np.reshape(minute, [-1, self.hp.site_num])
+
+            for site in range(self.hp.site_num):
+                writer.writerow([site]+list(day[self.hp.input_length:,0])+
+                                 list(hour[self.hp.input_length:,0])+
+                                 list(minute[self.hp.input_length:,0]*15)+
+                                 list(np.round(self.re_current(label[0][site],max,min)))+
+                                 list(np.round(self.re_current(pre[0][site],max,min))))
+
+            # if i == 0:
+            #     end_t = datetime.datetime.now()
+            #     total_t = end_t - begin_time
+            #     print("Total running times is : %f" % total_t.total_seconds())
             label_list.append(label[:,:,:self.hp.predict_length])
             predict_list.append(pre[:,:,:self.hp.predict_length])
 

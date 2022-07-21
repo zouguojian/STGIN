@@ -259,9 +259,9 @@ def GMAN(X, TE, SE, P, Q, T, L, K, d, bn, bn_decay, is_training):
         X, STE_P, STE_Q, K, d, bn, bn_decay, is_training)
     print('the transAtt out shape is : ', X.shape)
     #decoder
-    # for _ in range(L):
-    #     X = STAttBlock(X, STE_Q, K, d, bn, bn_decay, is_training)
-    # print('the decoder out shape is : ', X.shape)
+    for _ in range(L):
+        X = STAttBlock(X, STE_Q, K, d, bn, bn_decay, is_training)
+    print('the decoder out shape is : ', X.shape)
     # output
     X = FC(
         X, units=[D, 1], activations=[tf.nn.relu, None],

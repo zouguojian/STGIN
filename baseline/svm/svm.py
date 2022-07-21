@@ -97,38 +97,48 @@ class svm_i():
         return np.array(x), np.array(y)
 
     def model(self):
-        self.dictionary_label = []
-        self.dictionary_predict = []
+        toll_label = list()
+        toll_predict = list()
+        for time_step in range(6):
+            self.dictionary_label = []
+            self.dictionary_predict = []
 
-        predict_index=0
+            predict_index=time_step
 
-        for site in range(108):
-            data1=self.data[(self.data['node']==self.data.values[site][0])]
-            x = data1.values[:, -1]
+            for site in range(108):
+                data1=self.data[(self.data['node']==self.data.values[site][0])]
+                x = data1.values[:, -1]
 
-            x,y=self.train_data(data=x,input_length=6,predict_length=6)
+                x,y=self.train_data(data=x,input_length=6,predict_length=6)
 
-            train_size = int(len(x) * 0.8)
-            train_x, train_y, test_x, test_y = x[:train_size],y[:train_size,predict_index], x[train_size:],y[train_size:,predict_index]
-            print(train_x.shape, train_y.shape, test_x.shape,test_y.shape)
-            # print(data1.shape)
-            # svr = GridSearchCV(SVR(kernel='rbf', gamma=0.1), cv=5,
-            #                    param_grid={"C": [1e0, 1e1, 1e2, 1e3],
-            #                                "gamma": np.logspace(-2, 2, 5)})
+                train_size = int(len(x) * 0.8)
+                train_x, train_y, test_x, test_y = x[:train_size],y[:train_size,predict_index], x[train_size:],y[train_size:,predict_index]
+                print(train_x.shape, train_y.shape, test_x.shape,test_y.shape)
+                # print(data1.shape)
+                # svr = GridSearchCV(SVR(kernel='rbf', gamma=0.1), cv=5,
+                #                    param_grid={"C": [1e0, 1e1, 1e2, 1e3],
+                #                                "gamma": np.logspace(-2, 2, 5)})
 
-            svr = SVR(C=4, degree=2)
+                svr = SVR(C=4, degree=2)
 
-            # model=svm.NuSVR(nu=0.457,C=.8,degree=3)
-            svr.fit(X=train_x, y=train_y)
+                # model=svm.NuSVR(nu=0.457,C=.8,degree=3)
+                svr.fit(X=train_x, y=train_y)
 
-            pre=svr.predict(X=test_x)
-            self.dictionary_predict.append(pre)
-            self.dictionary_label.append(test_y)
+                pre=svr.predict(X=test_x)
+                self.dictionary_predict.append(pre)
+                self.dictionary_label.append(test_y)
+            self.metric(np.reshape(np.array(self.dictionary_label), newshape=[-1]),
+                   np.reshape(np.array(self.dictionary_predict), newshape=[-1]))
+            toll_label.append(self.dictionary_label)
+            toll_predict.append(self.dictionary_predict)
+        self.metric(np.reshape(np.array(toll_label), newshape=[-1]),
+                    np.reshape(np.array(toll_predict), newshape=[-1]))
+
 #
 if __name__=='__main__':
 
     ha=svm_i(site_id=0,normalize=False)
 
     ha.model()
-    ha.metric(np.reshape(np.array(ha.dictionary_label),newshape=[-1]),np.reshape(np.array(ha.dictionary_predict),newshape=[-1]))
+    # ha.metric(np.reshape(np.array(ha.dictionary_label),newshape=[-1]),np.reshape(np.array(ha.dictionary_predict),newshape=[-1]))
     # print(iter.data.loc[iter.data['ZoneID']==0])
