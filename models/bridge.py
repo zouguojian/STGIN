@@ -197,7 +197,7 @@ class BridgeTransformer():
             for i in range(self.num_blocks):
                 with tf.variable_scope("num_blocks_{}".format(i)):
                     # Multihead Attention
-                    X_Q = multihead_attention(queries=X_Q, # future time steps
+                    X = multihead_attention(queries=X_Q, # future time steps
                                             keys=X_P,    # historical time steps
                                             values= X,   # historical inputs
                                             num_units=self.hidden_units,
@@ -205,8 +205,8 @@ class BridgeTransformer():
                                             dropout_rate=self.dropout_rate,
                                             is_training=self.is_training)
                     # Feed Forward
-                    X_Q = feedforward(X_Q, num_units=[4 * self.hidden_units, self.hidden_units])
-        X = tf.reshape(X_Q,shape=[-1, self.site_num, self.output_length, self.hidden_units])
+                    X = feedforward(X, num_units=[4 * self.hidden_units, self.hidden_units])
+        X = tf.reshape(X,shape=[-1, self.site_num, self.output_length, self.hidden_units])
         X = tf.transpose(X, [0, 2, 1, 3])
         print('bridge layer output, X shape is : ', X.shape)
         return X
