@@ -5,8 +5,8 @@ class parameter(object):
     def __init__(self,parser):
         self.parser=parser
 
-        self.parser.add_argument('--save_path', type=str, default='weights/STGIN_6/', help='save path')
-        self.parser.add_argument('--model_name', type=str, default='STGIN_2', help='training or testing model name')
+        self.parser.add_argument('--save_path', type=str, default='weights/STGIN/', help='save path')
+        self.parser.add_argument('--model_name', type=str, default='STGIN', help='training or testing model name')
 
         self.parser.add_argument('--divide_ratio', type=float, default=0.8, help='data_divide')
         self.parser.add_argument('--is_training', type=bool, default=True, help='is training')
@@ -17,14 +17,14 @@ class parameter(object):
         self.parser.add_argument('--dropout', type=float, default=0.0, help='drop out')
         self.parser.add_argument('--site_num', type=int, default=108, help='total number of road')
         self.parser.add_argument('--num_heads', type=int, default=4, help='total number of head attentions')
-        self.parser.add_argument('--num_blocks', type=int, default=1, help='total number of attention layers')
+        self.parser.add_argument('--num_blocks', type=int, default=2, help='total number of attention layers')
 
         #每个点表示a->b路线，目前8个收费站
         self.parser.add_argument('--emb_size', type=int, default=64, help='embedding size')
         self.parser.add_argument('--features', type=int, default=1, help='numbers of the feature')
         self.parser.add_argument('--features_p', type=int, default=15, help='numbers of the feature pollution')
         self.parser.add_argument('--normalize', type=bool, default=True, help='normalize')
-        self.parser.add_argument('--input_length', type=int, default=12, help='input length')
+        self.parser.add_argument('--input_length', type=int, default=6, help='input length')
         self.parser.add_argument('--output_length', type=int, default=6, help='output length')
 
         self.parser.add_argument('--hidden1', type=int, default=32, help='number of units in hidden layer 1')
