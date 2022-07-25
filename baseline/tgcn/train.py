@@ -218,8 +218,8 @@ class Model(object):
             #     total_t = end_t - begin_time
             #     print("Total running times is : %f" % total_t.total_seconds())
 
-            label_list.append(label[:,:,:self.hp.predict_length])
-            predict_list.append(pre[:,:,:self.hp.predict_length])
+            label_list.append(label)
+            predict_list.append(pre)
 
         label_list = np.reshape(np.array(label_list, dtype=np.float32),
                                 [-1, self.hp.site_num, self.hp.predict_length]).transpose([1, 0, 2])
@@ -235,8 +235,8 @@ class Model(object):
             label_list = np.array([np.reshape(site_label, [-1]) for site_label in label_list])
             predict_list = np.array([np.reshape(site_label, [-1]) for site_label in predict_list])
 
-        label_all = np.reshape(np.array(label_list),newshape=[self.hp.site_num, self.hp.output_length, -1])
-        predict_all = np.reshape(np.array(predict_list), newshape=[self.hp.site_num, self.hp.output_length, -1])
+        label_all = np.reshape(np.array(label_list),newshape=[self.hp.site_num, -1, self.hp.output_length])
+        predict_all = np.reshape(np.array(predict_list), newshape=[self.hp.site_num, -1, self.hp.output_length])
 
         label_list = np.reshape(label_list, [-1])
         predict_list = np.reshape(predict_list, [-1])
@@ -246,7 +246,7 @@ class Model(object):
 
         for i in range(self.hp.output_length):
             print('in the %d time step, the evaluating indicator'%(i+1))
-            metric(np.reshape(label_all[:,i,:], [-1]), np.reshape(predict_all[:,i,:], [-1]))
+            metric(np.reshape(predict_all[:,:,i], [-1]), np.reshape(label_all[:,:,i], [-1]))
         # self.describe(label_list, predict_list)   #预测值可视化
         return mae
 

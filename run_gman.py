@@ -204,16 +204,15 @@ class Model(object):
 
         max_s, min_s = iterate_test.max_s['speed'], iterate_test.min_s['speed']
 
-        file = open('results/'+str(self.para.model_name)+'.csv', 'w', encoding='utf-8')
-        writer = csv.writer(file)
-        writer.writerow(
-            ['road'] + ['day_' + str(i) for i in range(self.para.output_length)] + ['hour_' + str(i) for i in range(
-                self.para.output_length)] +
-            ['minute_' + str(i) for i in range(self.para.output_length)] + ['label_' + str(i) for i in
-                                                                             range(self.para.output_length)] +
-            ['predict_' + str(i) for i in range(self.para.output_length)])
+        # file = open('results/'+str(self.para.model_name)+'.csv', 'w', encoding='utf-8')
+        # writer = csv.writer(file)
+        # writer.writerow(
+        #     ['road'] + ['day_' + str(i) for i in range(self.para.output_length)] + ['hour_' + str(i) for i in range(
+        #         self.para.output_length)] +
+        #     ['minute_' + str(i) for i in range(self.para.output_length)] + ['label_' + str(i) for i in
+        #                                                                      range(self.para.output_length)] +
+        #     ['predict_' + str(i) for i in range(self.para.output_length)])
 
-        # '''
         for i in range(int((iterate_test.length // self.para.site_num
                             - iterate_test.length // self.para.site_num * iterate_test.divide_ratio
                             - (self.para.input_length + self.para.output_length)) // iterate_test.output_length) // self.para.batch_size):
@@ -227,12 +226,12 @@ class Model(object):
             # if i == 0: begin_time = datetime.datetime.now()
             pre_s = self.sess.run((self.pre), feed_dict=feed_dict)
 
-            for site in range(self.para.site_num):
-                writer.writerow([site]+list(day[self.para.input_length:,0])+
-                                 list(hour[self.para.input_length:,0])+
-                                 list(minute[self.para.input_length:,0]*15)+
-                                 list(np.round(self.re_current(label_s[0][site],max_s,min_s)))+
-                                 list(np.round(self.re_current(pre_s[0][site],max_s,min_s))))
+            # for site in range(self.para.site_num):
+            #     writer.writerow([site]+list(day[self.para.input_length:,0])+
+            #                      list(hour[self.para.input_length:,0])+
+            #                      list(minute[self.para.input_length:,0]*15)+
+            #                      list(np.round(self.re_current(label_s[0][site],max_s,min_s)))+
+            #                      list(np.round(self.re_current(pre_s[0][site],max_s,min_s))))
 
             # if i == 0:
             #     end_t = datetime.datetime.now()
@@ -251,15 +250,17 @@ class Model(object):
             label_s_list = np.array([np.reshape(site_label, [-1]) for site_label in label_s_list])
             pre_s_list = np.array([np.reshape(site_label, [-1]) for site_label in pre_s_list])
 
-        label_all = np.reshape(np.array(label_s_list), newshape=[self.para.site_num, self.para.output_length, -1])
-        predict_all = np.reshape(np.array(pre_s_list), newshape=[self.para.site_num, self.para.output_length, -1])
+        print('speed prediction result')
+        label_all = np.reshape(np.array(label_s_list), newshape=[self.para.site_num, -1, self.para.output_length])
+        predict_all = np.reshape(np.array(pre_s_list), newshape=[self.para.site_num, -1, self.para.output_length])
+
         label_s_list = np.reshape(label_s_list, [-1])
         pre_s_list = np.reshape(pre_s_list, [-1])
-        mae, rmse, mape, cor, r2 = metric(label_s_list, pre_s_list)  # 产生预测指标
+        mae, rmse, mape, cor, r2 = metric(pre_s_list, label_s_list)  # 产生预测指标
 
         for i in range(self.para.output_length):
-            print('in the %d time step, the evaluating indicator'%(i+1))
-            metric(np.reshape(label_all[:,i,:], [-1]), np.reshape(predict_all[:,i,:], [-1]))
+            print('in the %d time step, the evaluating indicator' % (i + 1))
+            metric(np.reshape(predict_all[:, :, i], [-1]), np.reshape(label_all[:, :, i], [-1]))
 
         # describe(label_list, predict_list)   #预测值可视化
         return mae

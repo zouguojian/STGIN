@@ -127,12 +127,10 @@ class svm_i():
                 pre=svr.predict(X=test_x)
                 self.dictionary_predict.append(pre)
                 self.dictionary_label.append(test_y)
-            self.metric(np.reshape(np.array(self.dictionary_label), newshape=[-1]),
-                   np.reshape(np.array(self.dictionary_predict), newshape=[-1]))
+            self.metric(np.reshape(np.array(self.dictionary_predict), newshape=[-1]), np.reshape(np.array(self.dictionary_label), newshape=[-1]))
             toll_label.append(self.dictionary_label)
             toll_predict.append(self.dictionary_predict)
-        self.metric(np.reshape(np.array(toll_label), newshape=[-1]),
-                    np.reshape(np.array(toll_predict), newshape=[-1]))
+        self.metric(np.reshape(np.array(toll_predict), newshape=[-1]), np.reshape(np.array(toll_label), newshape=[-1]))
 
 #
 if __name__=='__main__':

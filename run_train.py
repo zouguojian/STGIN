@@ -338,16 +338,18 @@ class Model(object):
         else:
             label_s_list = np.array([np.reshape(site_label, [-1]) for site_label in label_s_list])
             pre_s_list = np.array([np.reshape(site_label, [-1]) for site_label in pre_s_list])
+
         print('speed prediction result')
-        label_all = np.reshape(np.array(label_s_list), newshape=[self.para.site_num, self.para.output_length, -1])
-        predict_all = np.reshape(np.array(pre_s_list), newshape=[self.para.site_num, self.para.output_length, -1])
+        label_all = np.reshape(np.array(label_s_list),newshape=[self.para.site_num, -1, self.para.output_length])
+        predict_all = np.reshape(np.array(pre_s_list), newshape=[self.para.site_num, -1, self.para.output_length])
+
         label_s_list = np.reshape(label_s_list, [-1])
         pre_s_list = np.reshape(pre_s_list, [-1])
-        mae, rmse, mape, cor, r2 = metric(label_s_list, pre_s_list)  # 产生预测指标
+        mae, rmse, mape, cor, r2 = metric(pre_s_list, label_s_list)  # 产生预测指标
 
         for i in range(self.para.output_length):
             print('in the %d time step, the evaluating indicator'%(i+1))
-            metric(np.reshape(label_all[:,i,:], [-1]), np.reshape(predict_all[:,i,:], [-1]))
+            metric(np.reshape(predict_all[:,:,i], [-1]), np.reshape(label_all[:,:,i], [-1]))
 
         # describe(label_list, predict_list)   #预测值可视化
         return mae

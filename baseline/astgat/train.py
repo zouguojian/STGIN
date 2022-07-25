@@ -173,14 +173,14 @@ class Model(object):
         max, min = iterate_test.max_dict['speed'], iterate_test.min_dict['speed']
         print(max, min)
 
-        file = open('results/' + str(self.hp.model_name) + '.csv', 'w', encoding='utf-8')
-        writer = csv.writer(file)
-        writer.writerow(
-            ['road'] + ['day_' + str(i) for i in range(self.hp.output_length)] + ['hour_' + str(i) for i in range(
-                self.hp.output_length)] +
-            ['minute_' + str(i) for i in range(self.hp.output_length)] + ['label_' + str(i) for i in
-                                                                            range(self.hp.output_length)] +
-            ['predict_' + str(i) for i in range(self.hp.output_length)])
+        # file = open('results/' + str(self.hp.model_name) + '.csv', 'w', encoding='utf-8')
+        # writer = csv.writer(file)
+        # writer.writerow(
+        #     ['road'] + ['day_' + str(i) for i in range(self.hp.output_length)] + ['hour_' + str(i) for i in range(
+        #         self.hp.output_length)] +
+        #     ['minute_' + str(i) for i in range(self.hp.output_length)] + ['label_' + str(i) for i in
+        #                                                                     range(self.hp.output_length)] +
+        #     ['predict_' + str(i) for i in range(self.hp.output_length)])
 
         # '''
         for i in range(int((iterate_test.length // self.hp.site_num
@@ -202,12 +202,12 @@ class Model(object):
             hour = np.reshape(hour, [-1, self.hp.site_num])
             minute = np.reshape(minute, [-1, self.hp.site_num])
 
-            for site in range(self.hp.site_num):
-                writer.writerow([site]+list(day[self.hp.input_length:,0])+
-                                 list(hour[self.hp.input_length:,0])+
-                                 list(minute[self.hp.input_length:,0]*15)+
-                                 list(np.round(self.re_current(label[0][site],max,min)))+
-                                 list(np.round(self.re_current(pre[0][site],max,min))))
+            # for site in range(self.hp.site_num):
+            #     writer.writerow([site]+list(day[self.hp.input_length:,0])+
+            #                      list(hour[self.hp.input_length:,0])+
+            #                      list(minute[self.hp.input_length:,0]*15)+
+            #                      list(np.round(self.re_current(label[0][site],max,min)))+
+            #                      list(np.round(self.re_current(pre[0][site],max,min))))
 
             # if i == 0:
             #     end_t = datetime.datetime.now()
@@ -230,8 +230,8 @@ class Model(object):
             label_list = np.array([np.reshape(site_label, [-1]) for site_label in label_list])
             predict_list = np.array([np.reshape(site_label, [-1]) for site_label in predict_list])
 
-        label_all = np.reshape(np.array(label_list),newshape=[self.hp.site_num, self.hp.output_length, -1])
-        predict_all = np.reshape(np.array(predict_list), newshape=[self.hp.site_num, self.hp.output_length, -1])
+        label_all = np.reshape(np.array(label_list),newshape=[self.hp.site_num, -1, self.hp.output_length])
+        predict_all = np.reshape(np.array(predict_list), newshape=[self.hp.site_num, -1, self.hp.output_length])
 
         label_list = np.reshape(label_list, [-1])
         predict_list = np.reshape(predict_list, [-1])
@@ -241,7 +241,7 @@ class Model(object):
 
         for i in range(self.hp.output_length):
             print('in the %d time step, the evaluating indicator'%(i+1))
-            metric(np.reshape(label_all[:,i,:], [-1]), np.reshape(predict_all[:,i,:], [-1]))
+            metric(np.reshape(predict_all[:,:,i], [-1]), np.reshape(label_all[:,:,i], [-1]))
 
         # self.describe(label_list, predict_list)   #预测值可视化
         return mae

@@ -38,8 +38,8 @@ class HA():
                     predict=np.mean(data_value[60:int(shape[0]*self.data_divide),-1])
                     label=np.reshape(data_value[int(shape[0]*self.data_divide):,-1],newshape=[-1])
 
-                    self.dictionary_label.append([predict]*label.shape[-1])
-                    self.dictionary_predict.append(list(label))
+                    self.dictionary_label.append(list(label))
+                    self.dictionary_predict.append([predict]*label.shape[-1])
 
 if __name__=='__main__':
     para = parameter(argparse.ArgumentParser())

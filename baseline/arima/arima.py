@@ -74,7 +74,7 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now()
     labels = []
     predicts = []
-    for site in range(0, 108): # 30 no problem
+    for site in range(90, 108): # 30 no problem
         print('site is , ',site)
         series=data.loc[data['node'] == site]
         label, predict=evaluate_models(series.values[:,-1], p_values=6, d_values=0, q_values=1, k=6)
