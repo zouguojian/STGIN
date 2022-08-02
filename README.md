@@ -1,6 +1,7 @@
 # Traffic-speed-prediction
 
-We have added all baseline models results and codes, inluding ST-GRAT, GMAN, AST-GAT and so on! note, we did not add the ST-GRAT results to our paper because the prediction precision of ST-GRAT is further lower than GMAN. if need, we can added it to paper!!!
+We have added all the baseline models results and codes to our GitHub, inluding ST-GRAT, GMAN, AST-GAT, Etc! note, we did not add the ST-GRAT results to our paper because the prediction precision of ST-GRAT is further lower than GMAN. if need, we can added it to paper!!!  
+
 ## 注意事项
 
 <font face="微软雅黑" >需要注意的是，需要根据requirements.txt文件中指示的包进行安装，才能正常的运行程序！！！</font>
