@@ -1,9 +1,9 @@
 # Traffic-speed-prediction
 
+We have added all baseline models results and codes, inluding ST-GRAT!
 ## 注意事项
 
 <font face="微软雅黑" >需要注意的是，需要根据requirements.txt文件中指示的包进行安装，才能正常的运行程序！！！</font>
-  
 >* 首先，使用conda创建一个虚拟环境，如‘conda create traffic_speed’；  
 > * 激活环境，conda activate traffic_speed；  
 > * 安装环境，需要安装的环境已经添加在requirements.txt中，可以用conda安装，也可以使用pip安装，如：conda install tensorflow==1.12.0；  
