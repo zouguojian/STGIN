@@ -1,6 +1,6 @@
 # Traffic-speed-prediction
 
-We have added all the baseline models results and codes to our GitHub, inluding ST-GRAT, GMAN, AST-GAT, Etc! note, we did not add the ST-GRAT results to our paper because the prediction precision of ST-GRAT (implemented by PyTorch) is further lower than GMAN. if need, we can added it to paper!!!  
+We have added all the baseline models results and codes to our GitHub, inluding ST-GRAT, GMAN, AST-GAT, Etc! note, we did not add the ST-GRAT results to our paper because the prediction precision of ST-GRAT (implemented by PyTorch, torch==1.6.0) is further lower than GMAN. if need, we can added it to paper!!!  
 
 ## 注意事项
 
