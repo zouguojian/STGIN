@@ -1,6 +1,6 @@
 # Traffic-speed-prediction
 
-We have added all the baseline models results and codes to our GitHub, inluding ST-GRAT, GMAN, AST-GAT, DCRNN, T-GCN, Etc! note, we did not add the ST-GRAT and DCNN results to our paper because the prediction precision of DCRNN and ST-GRAT (implemented by PyTorch, torch==1.6.0) is further lower than GMAN. if need, we can added both to paper!!!  
+We have added all the baseline models results and codes to our GitHub, inluding ST-GRAT, GMAN, AST-GAT, DCRNN, T-GCN, Etc! note, we did not add the ST-GRAT and DCRNN results to our paper because the prediction precision of DCRNN and ST-GRAT (implemented by PyTorch, torch==1.6.0) is further lower than GMAN. if need, we can added both to paper!!!  
 
 ## 注意事项
 
