@@ -1,6 +1,6 @@
 # Traffic-speed-prediction
 
-We have added all the baseline models results and codes to our GitHub, including ST-GRAT, GMAN, AST-GAT, DCRNN, T-GCN, Etc! Note, we did not add the ST-GRAT and DCRNN results to our paper because the prediction precision of DCRNN and ST-GRAT (implemented by PyTorch, torch==1.6.0) is further lower than GMAN, but we gave the results on the dataset as the following shows. If you need, we will add both results to paper!!!  Our task is using the 12 historical time steps to prediction the future 6 target time steps traffic speed of highway. If you have any questions, don't hesitate to connect us, thanks！
+We have added all the baseline models results and codes to our GitHub, including ST-GRAT, GMAN, AST-GAT, DCRNN, T-GCN, Etc! Note, we did not add the ST-GRAT and DCRNN results to our paper because the prediction precision of DCRNN and ST-GRAT (implemented by PyTorch, torch==1.6.0) is further lower than GMAN, but we gave the results on the dataset as the following shows. If you need, we will add both results to paper!!!  Our task is using the 6 historical time steps to prediction the future 6 target time steps traffic speed of highway, and uur time granularity is 15 minutes. If you have any questions, don't hesitate to connect us, thanks！
 
 ## 注意事项
 
