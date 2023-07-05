@@ -51,13 +51,13 @@ $$
 
 > Performance comparison of different approaches for long-term highway traffic speed prediction  
 
-<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/1.png" width = "1100" height="500"/></div>
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/1.png" width = "1200" height="400"/></div>
 
 ## INFLUENCE OF EACH COMPONENT
 
 > Performance of the different time steps prediction for distinguished variants  
 
-<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/2.png" width = "700" height="300"/></div>
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/2.png" width = "800" height="200"/></div>
 
 ## COMPUTATION COST
 
