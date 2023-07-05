@@ -12,6 +12,7 @@ import configparser
 from model.ASTGCN_r import make_model
 from lib.utils import load_graphdata_channel1, get_adjacency_matrix, compute_val_loss_mstgcn, predict_and_save_results_mstgcn, load_adj, load_data_new
 from tensorboardX import SummaryWriter
+torch.manual_seed(101)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", default='configurations/PEMS04_astgcn.conf', type=str,

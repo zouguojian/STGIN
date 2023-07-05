@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import time
 import argparse
 import math
+torch.manual_seed(101)
 
 # from lib import utils
 from utils import log_string, loadPEMSData, load_dataset, load_graph_adj, load_graph_data

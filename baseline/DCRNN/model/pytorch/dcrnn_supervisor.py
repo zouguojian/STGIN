@@ -10,7 +10,7 @@ from model.pytorch.dcrnn_model import DCRNNModel
 from model.pytorch.utils import masked_mae_loss, metric, get_normalized_adj
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+torch.manual_seed(101)
 
 class DCRNNSupervisor:
     def __init__(self, data_type, LOAD_INITIAL, adj_mx, **kwargs):

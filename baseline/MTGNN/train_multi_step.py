@@ -75,7 +75,7 @@ import os
 os.makedirs(args.save, exist_ok=True)
 
 def main(runid):
-    # torch.manual_seed(args.seed)
+    torch.manual_seed(args.seed)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
     # np.random.seed(args.seed)

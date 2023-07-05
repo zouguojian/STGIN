@@ -32,6 +32,9 @@ os.environ['CUDA_VISIBLE_DEVICES']='4'
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
+tf.random.set_random_seed(seed=22)
+np.random.seed(22)
+
 
 class Model(object):
     def __init__(self, para, mean, std):

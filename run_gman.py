@@ -36,6 +36,10 @@ import csv
 
 tf.reset_default_graph()
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+tf.random.set_random_seed(seed=22)
+np.random.seed(22)
+
 # logs_path = "board"
 #
 # os.environ['CUDA_VISIBLE_DEVICES']='2'
