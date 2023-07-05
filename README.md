@@ -47,3 +47,24 @@ $$
 $$
   
 ---
+
+## PREDICTING PERFORMANCE COMPARISON 
+
+> Performance comparison of different approaches for long-term highway traffic speed prediction  
+
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/1.png" width = "600" height="500"/></div>
+---
+
+## INFLUENCE OF EACH COMPONENT
+
+> Performance of the different time steps prediction for distinguished variants  
+
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/2.png" width = "600" height="500"/></div>
+---
+
+## COMPUTATION COST
+
+> Computation cost during the training and inference phases (* means the model train one time on the whole training set) 
+
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/3.png" width = "600" height="500"/></div>
+---
