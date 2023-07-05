@@ -1,7 +1,5 @@
 # -- coding: utf-8 --
-
 from models.layers import *
-from models.metrics import *
 
 
 class Model(object):
@@ -15,9 +13,6 @@ class Model(object):
 
         self.inputs = None
         self.outputs = None
-
-        self.loss = 0
-        self.accuracy = 0
 
     def _build(self):
         raise NotImplementedError
@@ -38,7 +33,7 @@ class Model(object):
         for i, layer in enumerate(self.layers):
             hidden = layer.forward(self.activations[-1])
             # trick
-            res_x=tf.layers.dense(self.inputs,units=hidden.shape[-1],name=str(i))
+            res_x=tf.layers.dense(self.inputs, units=hidden.shape[-1], name=str(i), reuse=tf.AUTO_REUSE)
             self.activations.append(hidden+res_x) # feed forward
         outputs = self.activations[-1] # the last layer output
         return outputs

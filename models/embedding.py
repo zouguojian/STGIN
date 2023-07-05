@@ -1,5 +1,5 @@
 # -- coding: utf-8 --
-import tensorflow as tf
+from models.inits import *
 
 def embedding(inputs,
               vocab_size,

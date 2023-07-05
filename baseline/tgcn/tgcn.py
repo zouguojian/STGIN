@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 
-#import numpy as np
-import tensorflow as tf
-# from tensorflow.contrib.rnn import RNNCell
-from baseline.tgcn.utils import calculate_laplacian
+from inits import *
+from utils import calculate_laplacian
 
-class tgcnCell(tf.nn.rnn_cell.RNNCell):
+class tgcnCell(tf.nn.rnn_cell.GRUCell):
     """Temporal Graph Convolutional Network """
 
     def call(self, inputs, **kwargs):
@@ -14,7 +12,7 @@ class tgcnCell(tf.nn.rnn_cell.RNNCell):
     def __init__(self, num_units, adj, num_nodes, input_size=None,
                  act=tf.nn.tanh, reuse=None):
 
-        super(tgcnCell, self).__init__(_reuse=reuse)
+        super(tgcnCell, self).__init__(num_units=num_units)
         self._act = act
         self._nodes = num_nodes  # 站点个数
         self._units = num_units  # 隐藏状态大小
@@ -60,18 +58,18 @@ class tgcnCell(tf.nn.rnn_cell.RNNCell):
         with tf.variable_scope(scope):
             for m in self._adj:
                 x1 = tf.sparse_tensor_dense_matmul(m, x0)
-#                print(x1)
             x = tf.reshape(x1, shape=[self._nodes, input_size,-1])
             x = tf.transpose(x,perm=[2,0,1])  # [batch, site, hidden]
             x = tf.reshape(x, shape=[-1, input_size]) # [batch * site, hidden]
-            # weights = tf.get_variable(
-            #     'weights', [input_size, output_size], initializer=tf.contrib.layers.xavier_initializer())
-            # x = tf.matmul(x, weights)  # (batch_size * self._nodes, output_size)  output_size = 2 * hidden or hidden
-            # biases = tf.get_variable(
-            #     "biases", [output_size], initializer=tf.constant_initializer(bias, dtype=tf.float32))
-            # x = tf.nn.bias_add(x, biases)
 
-            x = tf.layers.dense(x, units=output_size, name='weights_1')
+            weights = tf.get_variable(
+                'weights', [input_size, output_size], initializer=tf.initializers.truncated_normal())
+            x = tf.matmul(x, weights)  # (batch_size * self._nodes, output_size)  output_size = 2 * hidden or hidden
+            biases = tf.get_variable(
+                "biases", [output_size], initializer=tf.constant_initializer(bias, dtype=tf.float32))
+            x = tf.nn.bias_add(x, biases)
+
+            # x = tf.layers.dense(x, units=output_size, name='weights_1')
             x = tf.reshape(x, shape=[-1, self._nodes, output_size])
             x = tf.reshape(x, shape=[-1, self._nodes * output_size])
         return x

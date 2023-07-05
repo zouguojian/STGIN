@@ -1,13 +1,142 @@
 # -- coding: utf-8 --
-from models.spatial_attention import SpatialTransformer
-import tensorflow as tf
-from models.temporal_attention import TemporalTransformer
-from models.lstm import LstmClass
-from baseline.gman import tf_utils
+from models.inits import *
+from models.lstm import LstmClass, GRUClass
+from models import tf_utils
 from models.utils import *
+from models.bridge import BridgeTransformer
+
+class MultiHeadGATLayer(tf.keras.layers.Layer):
+    def __init__(self, in_dim, out_dim,
+                 attn_heads=1,
+                 attn_heads_reduction='concat',  # {'concat', 'average'}
+                 dropout_rate=0.1,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 attn_kernel_initializer='glorot_uniform',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 attn_kernel_regularizer=None,
+                 activity_regularizer=None,
+                 **kwargs):
+
+        if attn_heads_reduction not in {'concat', 'average'}:
+            raise ValueError('Possbile reduction methods: concat, average')
+
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+
+        self.attn_heads = attn_heads
+        self.attn_heads_reduction = attn_heads_reduction
+        self.dropout_rate = dropout_rate
+        self.activation = activation
+        self.use_bias = use_bias
+
+        self.kernel_initializer = kernel_initializer
+        self.bias_initializer = bias_initializer
+        self.attn_kernel_initializer = attn_kernel_initializer
+
+        self.kernel_regularizer = kernel_regularizer
+        self.bias_regularizer = bias_regularizer
+        self.attn_kernel_regularizer = attn_kernel_regularizer
+        self.activity_regularizer = activity_regularizer
+
+        self.kernels = []
+        self.biases = []
+        self.atten_kernels = []
+
+        super(MultiHeadGATLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        assert len(input_shape) >= 2
+
+        for head in range(self.attn_heads):
+            kernel = self.add_weight(shape=(self.in_dim, self.out_dim),
+                                     initializer=self.kernel_initializer,
+                                     regularizer=self.kernel_regularizer,
+                                     name='kernel_{}'.format(head))
+            self.kernels.append(kernel)
+
+            if self.use_bias:
+                bias = self.add_weight(shape=(self.out_dim,),
+                                       initializer=self.bias_initializer,
+                                       regularizer=self.bias_regularizer,
+                                       name='bias_{}'.format(head))
+                self.biases.append(bias)
+
+            atten_kernel = self.add_weight(shape=(2 * self.out_dim, 1),
+                                           initializer=self.kernel_initializer,
+                                           regularizer=self.kernel_regularizer,
+                                           name='kernel_{}'.format(head))
+            self.atten_kernels.append(atten_kernel)
+
+        self.built = True
+
+    def call(self, inputs, training):
+        X = inputs[0]
+        A = inputs[1]
+
+        N = X.shape[1]
+        dim = X.shape[2]
+
+        outputs = []
+        for head in range(self.attn_heads):
+
+            kernel = self.kernels[head]
+
+            features = tf.matmul(X, kernel)
+
+            concat_features = tf.concat([tf.reshape(tf.tile(features, [1, 1, N]), [-1, N * N, dim]), tf.tile(features, [1, N, 1])], axis=-1)
+
+            concat_features = tf.transpose(concat_features, [1, 0, 2 ]) # [N*N, -1, 2 * dim]
+
+            atten_kernel = self.atten_kernels[head]
+
+            dense = tf.matmul(concat_features, atten_kernel) # [N*N, -1, 1]
+
+            dense = tf.keras.layers.LeakyReLU(alpha=0.2)(dense)
+
+            attention = tf.reshape(dense, [N, N, -1]) # [N, N, -1]
+
+            # zero_vec = -9e15 * tf.ones_like(dense)
+            # attention = tf.where(A > 0, dense, zero_vec)
+
+            dense = tf.keras.activations.softmax(attention, axis=-1)
+            dense = tf.transpose(dense, [2, 0, 1])
+
+            dropout_attn = tf.keras.layers.Dropout(self.dropout_rate)(dense, training=training)
+            dropout_feat = tf.keras.layers.Dropout(self.dropout_rate)(features, training=training)
+
+            node_features = tf.matmul(dropout_attn, dropout_feat)
+
+            if self.use_bias:
+                node_features = tf.add(node_features, self.biases[head])
+
+            outputs.append(node_features)
+
+        if self.attn_heads_reduction == 'concat':
+            output = tf.concat(outputs, axis=-1)
+        else:
+            output = tf.reduce_mean(tf.stack(outputs), axis=-1)
+
+        if self.activation is not None:
+            output = self.activation(output)
+
+        return output
+
+def fusionGate(x, y):
+    '''
+    :param x: [-1, len, site, dim]
+    :param y: [-1, len, site, dim]
+    :return: [-1, len, site, dim]
+    '''
+    z = tf.nn.sigmoid(tf.multiply(x, y))
+    h = tf.add(tf.multiply(z, x), tf.multiply(1 - z, y))
+    return h
 
 class ST_Block():
-    def __init__(self, hp=None, placeholders=None, input_length=6, model_func=None):
+    def __init__(self, hp=None, placeholders=None, input_length=12, model_func=None):
         '''
         :param hp:
         '''
@@ -20,9 +149,9 @@ class ST_Block():
         self.hidden_size = self.para.hidden_size
         self.hidden_layer =self.para.hidden_layer
         self.features = self.para.features
-        self.features_p = self.para.features_p
         self.placeholders = placeholders
         self.input_length = input_length
+        self.num_heads = self.para.num_heads
         self.model_func = model_func
 
     def FC(self, x, units, activations, bn, bn_decay, is_training, use_bias=True):
@@ -84,83 +213,65 @@ class ST_Block():
             bn=bn, bn_decay=bn_decay, is_training=is_training)
         return tf.add(SE, TE)
 
-    def spatio_temporal_(self, speed=None, STE=None, supports=None):
+    def spatiotemporal(self, bn, bn_decay, is_training, speed=None, STE=None, supports=None,mask=True, speed_all=None, adj =None):
         X = speed
+        X_ALL=speed_all
         for _ in range(self.para.num_blocks):
-            X = STAttBlock(X, STE, self.para.num_heads, self.para.emb_size // self.para.num_heads, False, 0.99, self.para.is_training)
+            HT = temporalAttention(X + X_ALL[:,:self.input_length] + STE, STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training, mask=mask)
+
+        XL = tf.transpose(X + X_ALL[:,:self.input_length], perm=[0, 2, 1, 3])
+        XL = tf.reshape(XL, shape=[-1, self.input_length, self.emb_size])
+        lstm_init = LstmClass(batch_size=self.batch_size * self.site_num,
+                                layer_num=self.hidden_layer,
+                                nodes=self.hidden_size,
+                                placeholders=self.placeholders)
+        XL, _ = lstm_init.encoding(XL)
+        XL = tf.reshape(XL, shape=[self.batch_size, self.site_num, self.input_length, self.emb_size])
+        XL = tf.transpose(XL, perm=[0, 2, 1, 3])
+        HT = fusionGate(HT, XL)
+
+        # GATs
+        # HS = tf.reshape(X, shape=[-1, self.site_num, self.emb_size])
+        # GAT =MultiHeadGATLayer(in_dim=self.emb_size,out_dim=self.emb_size)
+        # HS = GAT([HS, adj], self.is_training)
+        # HS = tf.reshape(HS, shape=[-1, self.input_length, self.site_num, self.emb_size])
+
+        for _ in range(self.para.num_blocks):
+            HS = spatialAttention(X + X_ALL[:,self.input_length:], STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training)
+        XS = tf.reshape(X + X_ALL[:,self.input_length:] + STE, shape=[-1, self.site_num, self.emb_size * 1])
+        gcn = self.model_func(self.placeholders,
+                                input_dim=self.emb_size * 1,
+                                para=self.para,
+                                supports=supports)
+        XS = gcn.predict(XS)
+        XS = tf.reshape(XS, shape=[-1, self.input_length, self.site_num, self.emb_size])
+        HS = fusionGate(HS, XS)
+
+        H = fusionGate(HS, HT)
+        # H = gatedFusion(HS, HT, self.emb_size, bn, bn_decay, is_training)
+        X = tf.add(X, H)
         return X
 
-    def spatio_temporal(self, speed=None, STE=None, supports=None):
-        '''
-        :param features: [N, site_num, emb_size]
-        :param day: [N, input_length, site_num, emb_size]
-        :param hour:
-        :param position:
-        :return: [N, input_length, site_num, emb_size]
-        '''
-        # this step use to encoding the input series data
-        x = tf.concat([speed, STE], axis=-1)
-        # x = tf.add(speed,STE)
-        # temporal correlation
-        x_t = tf.transpose(speed, perm=[0, 2, 1, 3])
-        x_t = tf.reshape(x_t, shape=[-1, self.input_length, self.emb_size * 1])
-        T = TemporalTransformer(self.para)
-        x_t = T.encoder(hiddens = x_t,
-                        hidden = x_t)
-        # time series correlation
-        x_l = tf.transpose(x, perm=[0, 2, 1, 3])
-        x_l = tf.reshape(x_l, shape=[-1, self.input_length, self.emb_size * 2])
-        # x_l = tf.reshape(tf.transpose(speed,[0,2,1,3]), shape=[-1, self.para.input_length, self.para.emb_size])
-        lstm_init = LstmClass(batch_size=self.batch_size * self.site_num,
-                              layer_num=self.hidden_layer,
-                              nodes=self.hidden_size,
-                              placeholders=self.placeholders)
-        x_l, c_states = lstm_init.encoding(x_l)
-        # feature fusion
-        x_t = tf.add_n([x_t, x_l])
-        # x_t = tf.concat([x_t, x_l], axis=-1)
-        x_t = tf.layers.dense(x_t, units=self.emb_size, activation=tf.nn.relu)
-        x_t = tf.layers.dense(x_t, units=self.emb_size)
-        x_t = tf.reshape(x_t, shape=[self.batch_size, self.site_num, self.input_length, self.emb_size])
-        x_t = tf.transpose(x_t, perm=[0, 2, 1, 3])
+    def dynamic_decoding(self, hiddens=None, STE=None):
+        X = hiddens
+        y=[]
+        X = tf.transpose(X, perm=[0, 2, 1, 3])
+        X = tf.reshape(X, shape=[-1, self.input_length, self.emb_size])
+        T = BridgeTransformer(self.para)
+        temp = X[:,-1:]
+        for time_step in range(self.para.output_length):
+            temp = T.encoder(hiddens = X,
+                            hidden = temp)
+            y.append(temp)
+        X = tf.reshape(tf.concat(y, axis=1), shape=[-1, self.para.site_num, self.para.output_length, self.emb_size])
+        X = tf.transpose(X, perm=[0, 2, 1, 3])
+        return X
 
-        """ --------------------------------------------------------------------------------------- """
-
-        # dynamic spatial correlation
-        x_s = tf.reshape(x, shape=[-1, self.site_num, self.emb_size * 2])
-        S = SpatialTransformer(self.para)
-        x_s = S.encoder(inputs=x_s)
-        # static spatial correlation
-        x_g = tf.reshape(speed, shape=[-1, self.site_num, self.emb_size * 1])
-        gcn = self.model_func(self.placeholders,
-                              input_dim=self.emb_size * 1,
-                              para=self.para,
-                              supports=supports)
-        x_g = gcn.predict(x_g)
-
-
-        # x_g = tf.concat(tf.split(x_g, self.para.num_heads, axis=2), axis=0)
-        # encoder_gcn = self.model_func(placeholders=self.placeholders,
-        #                                 input_dim=self.emb_size // self.para.num_heads,
-        #                                 para=self.para,
-        #                                 supports=supports)
-        # x_g = encoder_gcn.predict(x_g)
-        # x_g = tf.concat(tf.split(x_g, self.para.num_heads, axis=0), axis=2)
-
-        # x_s = tf.add_n([x_s, x_g])
-        x_s = tf.concat([x_s, x_g], axis=-1)
-        x_s = tf.layers.dense(x_s, units=self.emb_size, activation=tf.nn.relu)
-        x_s = tf.layers.dense(x_s, units=self.emb_size)
-
-        x_s = tf.reshape(x_s, shape=[-1, self.input_length, self.site_num, self.emb_size])
-        # feature fusion
-        x_f = self.gatedFusion(x_s, x_t, self.para.emb_size, False, 0.99, self.para.is_training)
-        # x_f = tf.concat([x_t, x_s], axis=-1)
-        # x_f = tf.layers.dense(x_f, units=self.emb_size, activation=tf.nn.relu)
-        # x_f = tf.layers.dense(x_f, units=self.emb_size)
-        # x_f = tf.reshape(x_f, shape=[self.batch_size, self.input_length, self.site_num, self.emb_size])
-
-        return x_f #[N, input_length, site_num, emb_size]
+    def spatiotemporal_(self, bn, bn_decay, is_training, speed=None, STE=None, supports=None, speed_all=None):
+        X = speed
+        for _ in range(self.para.num_blocks):
+            X = STAttBlock(X + speed_all[:,:self.input_length], STE, self.para.num_heads, self.para.emb_size // self.para.num_heads, bn=bn, bn_decay=bn_decay, is_training=is_training)
+        return X
 
 def spatialAttention(X, STE, K, d, bn, bn_decay, is_training):
     '''
@@ -172,7 +283,6 @@ def spatialAttention(X, STE, K, d, bn, bn_decay, is_training):
     return: [batch_size, num_step, N, D]
     '''
     D = K * d
-    X = tf.concat((X, STE), axis=-1) # 和我们的一致
     # [batch_size, num_step, N, K * d]
     query = FC(
         X, units=D, activations=tf.nn.relu,
@@ -210,8 +320,6 @@ def temporalAttention(X, STE, K, d, bn, bn_decay, is_training, mask=True):
     return: [batch_size, num_step, N, D]
     '''
     D = K * d
-    X = tf.concat((X, STE), axis=-1) # 和我们的一致
-    # [batch_size, num_step, N, K * d]
     query = FC(
         X, units=D, activations=tf.nn.relu,
         bn=bn, bn_decay=bn_decay, is_training=is_training)
@@ -244,7 +352,7 @@ def temporalAttention(X, STE, K, d, bn, bn_decay, is_training, mask=True):
         mask = tf.expand_dims(tf.expand_dims(mask, axis=0), axis=0)
         mask = tf.tile(mask, multiples=(K * batch_size, N, 1, 1))
         mask = tf.cast(mask, dtype=tf.bool)
-        attention = tf.where(
+        attention = tf.compat.v2.where(
             condition=mask, x=attention, y=-2 ** 15 + 1)
     # softmax
     attention = tf.nn.softmax(attention, axis=-1)
@@ -280,7 +388,7 @@ def gatedFusion(HS, HT, D, bn, bn_decay, is_training):
         bn=bn, bn_decay=bn_decay, is_training=is_training)
     return H
 
-def STAttBlock(X, STE, K, d, bn, bn_decay, is_training, mask=False):
+def STAttBlock(X, STE, K, d, bn, bn_decay, is_training, mask=True):
     HS = spatialAttention(X, STE, K, d, bn, bn_decay, is_training)
     HT = temporalAttention(X, STE, K, d, bn, bn_decay, is_training, mask=mask)
     H = gatedFusion(HS, HT, K * d, bn, bn_decay, is_training)

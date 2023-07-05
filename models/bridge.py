@@ -1,5 +1,4 @@
 # -- coding: utf-8 --
-import tensorflow as tf
 from models.utils import *
 
 def normalize(inputs,
@@ -34,7 +33,6 @@ def normalize(inputs,
 
 def multihead_attention(queries,
                         keys,
-                        values = None,
                         num_units=None,
                         num_heads=8,
                         scope="multihead_attention",
@@ -66,7 +64,7 @@ def multihead_attention(queries,
         # Linear projections
         Q = tf.layers.dense(queries, num_units, activation=tf.nn.relu)  # (N, T_q, C)
         K = tf.layers.dense(keys, num_units, activation=tf.nn.relu)  # (N, T_k, C)
-        V = tf.layers.dense(values, num_units, activation=tf.nn.relu)  # (N, T_k, C)
+        V = tf.layers.dense(keys, num_units, activation=tf.nn.relu)  # (N, T_k, C)
 
         # Split and concat
         Q_ = tf.concat(tf.split(Q, num_heads, axis=2), axis=0)  # (h*N, T_q, C/h)
@@ -75,20 +73,27 @@ def multihead_attention(queries,
 
         # Multiplication
         outputs = tf.matmul(Q_, tf.transpose(K_, [0, 2, 1]))  # (h*N, T_q, T_k)
+
         # Scale
         outputs = outputs / (K_.get_shape().as_list()[-1] ** 0.5)
+
         # Activation
         outputs = tf.nn.softmax(outputs)  # (h*N, T_q, T_k)
+
         # Dropouts
         # outputs = tf.layers.dropout(outputs, rate=dropout_rate, training=tf.convert_to_tensor(is_training))
+
         # Weighted sum
         outputs = tf.matmul(outputs, V_)  # ( h*N, T_q, C/h)
+
         # Restore shape
         outputs = tf.concat(tf.split(outputs, num_heads, axis=0), axis=2)  # (N, T_q, C)
+
         # Residual connection
-        # outputs += queries
+        outputs += tf.layers.dense(queries, num_units, activation=tf.nn.relu) # gangdong
+
         # Normalize
-        # outputs = normalize(outputs) # (N, T_q, C)
+        outputs = normalize(outputs) # (N, T_q, C)
 
     return outputs
 
@@ -165,54 +170,41 @@ def label_smoothing(inputs, epsilon=0.1):
 class BridgeTransformer():
     def __init__(self, arg):
         self.arg = arg
-        self.emb_size=self.arg.emb_size
-        self.is_training = arg.is_training
-        self.input_length=self.arg.input_length
-        self.output_length=self.arg.output_length
-        self.hidden_units = arg.emb_size
-        self.batch = arg.batch_size
-        self.site_num = arg.site_num
+        self.is_training = self.arg.is_training
+        self.hidden_units = self.arg.emb_size
+        self.batch = self.arg.batch_size
+        self.site_num = self.arg.site_num
+        self.input_length = self.arg.input_length
 
         self.num_heads = arg.num_heads
         self.num_blocks = arg.num_blocks
         self.dropout_rate = arg.dropout
 
-    def encoder(self, X = None, X_Q = None, X_P = None):
+    def encoder(self, hiddens, hidden):
         '''
-        :param hiddens: [N, input_length, site_num, emb_size]
-        :param hidden: [N, output_length, site_num, emb_size]
-        :param hidden_units: [N, output_length, site_num, emb_size]
-        :param num_heads:
-        :param num_blocks:
-        :param dropout_rate:
-        :param is_training:
-        :return: [N, output_length, site_num, emb_size]
+        :param inputs: [batch , time, site num, hidden size]
+        :param day: [batch , time, site num, hidden size]
+        :param hour: [batch , time, site num, hidden size]
+        :return:
         '''
-        with tf.variable_scope("encoder"):
-            X  = tf.reshape(tf.transpose(X,[0,2,1,3]), shape=[-1, self.input_length, self.emb_size])
-            X_P = tf.reshape(tf.transpose(X_P,[0,2,1,3]), shape=[-1, self.input_length, self.emb_size])
-            X_Q = tf.reshape(tf.transpose(X_Q,[0,2,1,3]), shape=[-1, self.output_length, self.emb_size])
-            
+        with tf.variable_scope("temporal_encoder"):
+            enc = hiddens
+            dec = hidden
             ## Blocks
             for i in range(self.num_blocks):
                 with tf.variable_scope("num_blocks_{}".format(i)):
-                    # Multihead Attention
-                    X_Q = multihead_attention(queries=X_Q, # future time steps
-                                            keys=X_P,    # historical time steps
-                                            values= X,   # historical inputs
-                                            num_units=self.hidden_units,
-                                            num_heads= self.num_heads, # self.num_heads
-                                            dropout_rate=self.dropout_rate,
-                                            is_training=self.is_training)
-                    # Feed Forward
-                    X_Q = feedforward(X_Q, num_units=[4 * self.hidden_units, self.hidden_units])
-        X = tf.reshape(X_Q,shape=[-1, self.site_num, self.output_length, self.hidden_units])
-        X = tf.transpose(X, [0, 2, 1, 3])
-        print('bridge layer output, X shape is : ', X.shape)
-        return X
+                    ### Multihead Attention
+                    dec = multihead_attention(queries=dec,
+                                              keys=enc,
+                                              num_units=self.hidden_units,
+                                              num_heads=self.num_heads,
+                                              dropout_rate=self.dropout_rate,
+                                              is_training=self.is_training)
+                    ### Feed Forward
+                    dec = feedforward(dec, num_units=[4 * self.hidden_units, self.hidden_units])
+        return dec
 
-
-def transformAttention(X, STE_P, STE_Q, K, d, bn, bn_decay, is_training):
+def BridgeTrans(X, STE_P, STE_Q, K, d, bn, bn_decay, is_training):
     '''
     transform attention mechanism
     X:      [batch_size, P, N, D]

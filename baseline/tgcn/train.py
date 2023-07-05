@@ -3,25 +3,20 @@
 from __future__ import division
 from __future__ import print_function
 
-import pandas as pd
-import os
-from baseline.tgcn.tgcn import tgcnCell
-from baseline.tgcn.utils import *
-from baseline.tgcn.hyparameter import parameter
+from tgcn import tgcnCell
+from utils import *
+from hyparameter import parameter
 import matplotlib.pyplot as plt
-import baseline.tgcn.data_next as data_load
-import argparse
-import datetime
-import csv
+from data_load import *
+from inits import *
 
 tf.reset_default_graph()
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 logs_path = "board"
 
-# os.environ['CUDA_VISIBLE_DEVICES']='2'
-#
-# from tensorflow.compat.v1 import ConfigProto
-# from tensorflow.compat.v1 import InteractiveSession
+os.environ['CUDA_VISIBLE_DEVICES']='4'
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 #
 # config = ConfigProto()
 # config.gpu_options.allow_growth = True
@@ -29,11 +24,28 @@ logs_path = "board"
 
 
 class Model(object):
-    def __init__(self, hp):
+    def __init__(self, para, mean, std):
         '''
         :param para:
         '''
-        self.hp = hp             # hyperparameter
+        self.para = para
+        self.mean = mean
+        self.std = std
+        self.input_len = self.para.input_length
+        self.output_len = self.para.output_length
+        self.total_len = self.input_len + self.output_len
+        self.features = self.para.features
+        self.batch_size = self.para.batch_size
+        self.epochs = self.para.epoch
+        self.site_num = self.para.site_num
+        self.emb_size = self.para.emb_size
+        self.hidden_size = self.para.hidden_size
+        self.is_training = self.para.is_training
+        self.learning_rate = self.para.learning_rate
+        self.model_name = self.para.model_name
+        self.granularity = self.para.granularity
+        self.num_train = 23967
+
         self.init_placeholder()  # init placeholder
         self.model()             # init prediction model
 
@@ -43,8 +55,8 @@ class Model(object):
         :return:
         '''
         self.placeholders = {
-            'features': tf.placeholder(tf.float32, shape=[None, self.hp.input_length, self.hp.site_num], name='input_features'),
-            'labels': tf.placeholder(tf.float32, shape=[None, self.hp.site_num, self.hp.output_length], name='labels'),
+            'features': tf.placeholder(tf.float32, shape=[None, self.input_len, self.site_num], name='input_features'),
+            'labels': tf.placeholder(tf.float32, shape=[None, self.site_num, self.total_len], name='labels'),
             'dropout': tf.placeholder_with_default(0., shape=(), name='input_dropout')
         }
 
@@ -52,8 +64,8 @@ class Model(object):
         '''
         :return: adjacent matrix
         '''
-        data = pd.read_csv(filepath_or_buffer=self.hp.file_adj)
-        adj = np.zeros(shape=[self.hp.site_num, self.hp.site_num])
+        data = pd.read_csv(filepath_or_buffer=self.para.file_adj)
+        adj = np.zeros(shape=[self.site_num, self.site_num])
         for line in data[['src_FID', 'nbr_FID']].values:
             adj[line[0]][line[1]] = 1
         return adj
@@ -65,7 +77,7 @@ class Model(object):
 
         def TGCN(_X, adj):
             ###
-            cell_1 = tgcnCell(self.hp.hidden_size, adj, num_nodes=self.hp.site_num)
+            cell_1 = tgcnCell(num_units=self.hidden_size, adj=adj, num_nodes=self.site_num)
             cell = tf.nn.rnn_cell.MultiRNNCell([cell_1], state_is_tuple=True)  # 可用多层
             _X = tf.unstack(_X, axis=1)
             outputs, states = tf.nn.static_rnn(cell, _X, dtype=tf.float32)
@@ -73,27 +85,26 @@ class Model(object):
             print('outputs shape is : ', outputs[-1].shape)
             m = []
             for i in outputs:
-                o = tf.reshape(i, shape=[-1, self.hp.site_num, self.hp.hidden_size])
-                o = tf.reshape(o, shape=[-1, self.hp.hidden_size])
+                o = tf.reshape(i, shape=[-1, self.site_num, self.hidden_size])
+                o = tf.reshape(o, shape=[-1, self.hidden_size])
                 m.append(o)
             last_output = m[-1]
             print('last_output shape is : ', last_output.shape)
-            last_output = tf.reshape(last_output, [-1, self.hp.site_num, self.hp.hidden_size])
-            last_output = tf.reshape(last_output, [-1, self.hp.site_num, self.hp.hidden_size])
+            last_output = tf.reshape(last_output, [-1, self.site_num, self.hidden_size])
+            last_output = tf.reshape(last_output, [-1, self.site_num, self.hidden_size])
             last_output = tf.layers.dense(inputs=last_output, units=64, activation=tf.nn.relu, name='layer_1')
-            output = tf.layers.dense(inputs=last_output, units=self.hp.output_length, activation=tf.nn.relu, name='output_y')
-            # output = tf.layers.dense(last_output,units=self.hp.output_length,name='output_y')
+            output = tf.layers.dense(inputs=last_output, units=self.output_len, name='output_y')
             return output, m, states
 
         adj = self.adjecent()
 
         self.pre, _, _ = TGCN(self.placeholders['features'],adj=adj)
+        self.pre = self.pre * (self.std) + self.mean
 
         print('pres shape is : ', self.pre.shape)
 
-        self.loss = tf.reduce_mean(
-                tf.sqrt(tf.reduce_mean(tf.square(self.pre + 1e-10 - self.placeholders['labels']), axis=0)))
-        self.train_op = tf.train.AdamOptimizer(self.hp.learning_rate).minimize(self.loss)
+        self.loss = mae_los(self.pre, self.placeholders['labels'][:,:,self.input_len:])
+        self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
     def test(self):
         '''
@@ -102,152 +113,101 @@ class Model(object):
         model_file = tf.train.latest_checkpoint('weights/')
         self.saver.restore(self.sess, model_file)
 
-    def describe(self, label, predict):
-        '''
-        :param label:
-        :param predict:
-        :return:
-        '''
-        plt.figure()
-        # Label is observed value,Blue
-        plt.plot(label[0:], 'b', label=u'actual value')
-        # Predict is predicted value，Red
-        plt.plot(predict[0:], 'r', label=u'predicted value')
-        # use the legend
-        plt.legend()
-        # plt.xlabel("time(hours)", fontsize=17)
-        # plt.ylabel("pm$_{2.5}$ (ug/m$^3$)", fontsize=17)
-        # plt.title("the prediction of pm$_{2.5}", fontsize=17)
-        plt.show()
+    def initialize_session(self,session):
+        self.sess = session
+        self.saver = tf.train.Saver()
 
-    def initialize_session(self):
-        self.sess = tf.Session()
-        self.saver = tf.train.Saver(var_list=tf.trainable_variables())
-
-    def re_current(self, a, max, min):
-        return [num * (max - min) + min for num in a]
-
-    def run_epoch(self):
+    def run_epoch(self, trainX, trainL, valX, valL):
         '''
-        :return:
+        from now on,the model begin to training, until the epoch to 100
         '''
         max_mae = 100
+        shape = trainX.shape
+        num_batch = math.ceil(shape[0] / self.batch_size)
+        self.num_train=shape[0]
         self.sess.run(tf.global_variables_initializer())
+        start_time = datetime.datetime.now()
+        iteration=0
+        for epoch in range(self.epochs):
+            # shuffle
+            permutation = np.random.permutation(shape[0])
+            trainX = trainX[permutation]
+            trainL = trainL[permutation]
+            for batch_idx in range(num_batch):
+                iteration+=1
+                start_idx = batch_idx * self.batch_size
+                end_idx = min(shape[0], (batch_idx + 1) * self.batch_size)
+                xs = trainX[start_idx : end_idx]
+                labels = trainL[start_idx : end_idx]
+                feed_dict = construct_feed_dict(features=xs,
+                                                labels=labels,
+                                                placeholders=self.placeholders)
+                feed_dict.update({self.placeholders['dropout']: self.para.dropout})
+                loss_, _ = self.sess.run((self.loss, self.train_op), feed_dict=feed_dict)
 
-        iterate = data_load.DataClass(hp=self.hp)
-        train_next = iterate.next_batch(batch_size=self.hp.batch_size, epoch=self.hp.epoch, is_training=True)
+                if iteration % 100 == 0:
+                    end_time = datetime.datetime.now()
+                    total_time = end_time - start_time
+                    print("Total running times is : %f" % total_time.total_seconds())
 
-        for i in range(int((iterate.length // self.hp.site_num * iterate.divide_ratio - (
-                iterate.input_length + iterate.output_length)) // iterate.step)
-                       * self.hp.epoch // self.hp.batch_size):
-            x, label,_,_,_ = self.sess.run(train_next)
-            features = np.reshape(x, [-1, self.hp.input_length, self.hp.site_num])
-            feed_dict = construct_feed_dict(features,label, self.placeholders)
-            feed_dict.update({self.placeholders['dropout']: self.hp.dropout})
-            loss_, _ = self.sess.run((self.loss, self.train_op), feed_dict=feed_dict)
-            print("after %d steps,the training average loss value is : %.6f" % (i, loss_))
+            print('validation')
+            mae = self.evaluate(valX, valL)  # validate processing
+            if max_mae > mae:
+                print("in the %dth epoch, the validate average loss value is : %.3f" % (epoch + 1, mae))
+                max_mae = mae
+                self.saver.save(self.sess, save_path=self.para.save_path)
 
-            # validate processing
-            if i % 100 == 0:
-                mae = self.evaluate()
-
-                if max_mae > mae:
-                    print("the validate average rmse loss value is : %.6f" % (mae))
-                    max_mae = mae
-                    self.saver.save(self.sess, save_path=self.hp.save_path + 'model.ckpt')
-
-                    # if os.path.exists('model_pb'): shutil.rmtree('model_pb')
-                    # builder = tf.saved_model.builder.SavedModelBuilder('model_pb')
-                    # builder.add_meta_graph_and_variables(self.sess, ["mytag"])
-                    # builder.save()
-
-    def evaluate(self):
+    def evaluate(self, testX, testL):
         '''
+        :param para:
+        :param pre_model:
         :return:
         '''
-        label_list = list()
-        predict_list = list()
-
-        # with tf.Session() as sess:
-        model_file = tf.train.latest_checkpoint(self.hp.save_path)
-        if not self.hp.is_training:
+        labels_list, pres_list = list(), list()
+        if not self.is_training:
+            # model_file = tf.train.latest_checkpoint(self.para.save_path)
+            saver = tf.train.import_meta_graph(self.para.save_path + '.meta')
+            # saver.restore(sess, args.model_file)
             print('the model weights has been loaded:')
-            self.saver.restore(self.sess, model_file)
-            # self.saver.save(self.sess, save_path='gcn/model/' + 'model.ckpt')
+            saver.restore(self.sess, self.para.save_path)
 
-        iterate_test = data_load.DataClass(hp=self.hp)
-        test_next = iterate_test.next_batch(batch_size=self.hp.batch_size, epoch=1, is_training=False)
-        max, min = iterate_test.max_dict['speed'], iterate_test.min_dict['speed']
-        print(max, min)
+        parameters = 0
+        for variable in tf.trainable_variables():
+            parameters += np.product([x.value for x in variable.get_shape()])
+        print('trainable parameters: {:,}'.format(parameters))
 
-        file = open('results/' + str(self.hp.model_name) + '.csv', 'w', encoding='utf-8')
-        writer = csv.writer(file)
-        writer.writerow(
-            ['road'] + ['day_' + str(i) for i in range(self.hp.output_length)] + ['hour_' + str(i) for i in range(
-                self.hp.output_length)] +
-            ['minute_' + str(i) for i in range(self.hp.output_length)] + ['label_' + str(i) for i in
-                                                                            range(self.hp.output_length)] +
-            ['predict_' + str(i) for i in range(self.hp.output_length)])
-
-        # '''
-        for i in range(int((iterate_test.length // self.hp.site_num
-                            - iterate_test.length // self.hp.site_num * iterate_test.divide_ratio
-                            - (iterate_test.input_length + iterate_test.output_length)) // iterate_test.output_length)
-                       // self.hp.batch_size):
-            x, label, day, hour, minute = self.sess.run(test_next)
-            features = np.reshape(x, [-1, self.hp.input_length, self.hp.site_num])
-            feed_dict = construct_feed_dict(features, label, self.placeholders)
+        textX_shape = testX.shape
+        total_batch = math.ceil(textX_shape[0] / self.batch_size)
+        start_time = datetime.datetime.now()
+        for b_idx in range(total_batch):
+            start_idx = b_idx * self.batch_size
+            end_idx = min(textX_shape[0], (b_idx + 1) * self.batch_size)
+            xs = testX[start_idx: end_idx]
+            labels = testL[start_idx: end_idx]
+            feed_dict = construct_feed_dict(features=xs,
+                                            labels=labels,
+                                            placeholders=self.placeholders)
             feed_dict.update({self.placeholders['dropout']: 0.0})
-
-            # if i==0: begin_time = datetime.datetime.now()
             pre = self.sess.run((self.pre), feed_dict=feed_dict)
 
-            day = np.reshape(day, [-1, self.hp.site_num])
-            hour = np.reshape(hour, [-1, self.hp.site_num])
-            minute = np.reshape(minute, [-1, self.hp.site_num])
+            labels_list.append(labels[:,:,self.input_len:])
+            pres_list.append(pre)
 
-            for site in range(self.hp.site_num):
-                writer.writerow([site]+list(day[self.hp.input_length:,0])+
-                                 list(hour[self.hp.input_length:,0])+
-                                 list(minute[self.hp.input_length:,0]*15)+
-                                 list(np.round(self.re_current(label[0][site],max,min)))+
-                                 list(np.round(self.re_current(pre[0][site],max,min))))
+        end_time = datetime.datetime.now()
+        total_time = end_time - start_time
+        print("Total running times is : %f" % total_time.total_seconds())
 
-            # if i == 0:
-            #     end_t = datetime.datetime.now()
-            #     total_t = end_t - begin_time
-            #     print("Total running times is : %f" % total_t.total_seconds())
+        labels_list = np.concatenate(labels_list, axis=0)
+        pres_list = np.concatenate(pres_list, axis=0)
+        np.savez_compressed('data/TBLN-' + 'YINCHUAN', **{'prediction': pres_list, 'truth': labels_list})
 
-            label_list.append(label)
-            predict_list.append(pre)
-
-        label_list = np.reshape(np.array(label_list, dtype=np.float32),
-                                [-1, self.hp.site_num, self.hp.predict_length]).transpose([1, 0, 2])
-        predict_list = np.reshape(np.array(predict_list, dtype=np.float32),
-                                  [-1, self.hp.site_num, self.hp.predict_length]).transpose([1, 0, 2])
-
-        if self.hp.normalize:
-            label_list = np.array(
-                [self.re_current(np.reshape(site_label, [-1]), max, min) for site_label in label_list])
-            predict_list = np.array(
-                [self.re_current(np.reshape(site_label, [-1]), max, min) for site_label in predict_list])
-        else:
-            label_list = np.array([np.reshape(site_label, [-1]) for site_label in label_list])
-            predict_list = np.array([np.reshape(site_label, [-1]) for site_label in predict_list])
-
-        label_all = np.reshape(np.array(label_list),newshape=[self.hp.site_num, -1, self.hp.output_length])
-        predict_all = np.reshape(np.array(predict_list), newshape=[self.hp.site_num, -1, self.hp.output_length])
-
-        label_list = np.reshape(label_list, [-1])
-        predict_list = np.reshape(predict_list, [-1])
-
-        # average_error, rmse_error, cor, R2 = accuracy(label_list, predict_list)  # 产生预测指标
-        mae, rmse, mape, cor, r2=metric(predict_list,label_list)
-
-        for i in range(self.hp.output_length):
-            print('in the %d time step, the evaluating indicator'%(i+1))
-            metric(np.reshape(predict_all[:,:,i], [-1]), np.reshape(label_all[:,:,i], [-1]))
-        # self.describe(label_list, predict_list)   #预测值可视化
+        print('                MAE\t\tRMSE\t\tMAPE')
+        if not self.is_training:
+            for i in range(self.para.output_length):
+                mae, rmse, mape = metric(pres_list[:, :, i], labels_list[:, :, i])
+                print('step: %02d         %.3f\t\t%.3f\t\t%.3f%%' % (i + 1, mae, rmse, mape * 100))
+        mae, rmse, mape = metric(pres_list, labels_list)  # 产生预测指标
+        print('average:         %.3f\t\t%.3f\t\t%.3f%%' % (mae, rmse, mape * 100))
         return mae
 
 def main(argv=None):
@@ -255,6 +215,11 @@ def main(argv=None):
     :param argv:
     :return:
     '''
+
+    config = ConfigProto()
+    config.gpu_options.allow_growth = True
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    session = InteractiveSession(config=config)
     print('#......................................beginning........................................#')
     para = parameter(argparse.ArgumentParser())
     para = para.get_para()
@@ -268,13 +233,18 @@ def main(argv=None):
         para.batch_size = 1
         para.is_training = False
 
-    pre_model = Model(para)
-    pre_model.initialize_session()
+    trainX, trainDoW, trainM, trainL, trainXAll, valX, valDoW, valM, valL, valXAll, testX, testDoW, testM, testL, testXAll, mean, std = loadData(para)
+    print('trainX: %s\ttrainY: %s' % (trainX.shape, trainL.shape))
+    print('valX:   %s\t\tvalY:   %s' % (valX.shape, valL.shape))
+    print('testX:  %s\t\ttestY:  %s' % (testX.shape, testL.shape))
+    print('data loaded!')
 
+    pre_model = Model(para, mean, std)
+    pre_model.initialize_session(session)
     if int(val) == 1:
-        pre_model.run_epoch()
+        pre_model.run_epoch(trainX, trainL, valX, valL)
     else:
-        pre_model.evaluate()
+        pre_model.evaluate(testX, testL)
 
     print('#...................................finished............................................#')
 

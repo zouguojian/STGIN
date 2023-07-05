@@ -5,10 +5,10 @@ import networkx as nx
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
-import tensorflow as tf
-from baseline.gman import tf_utils
+from models.inits import *
+from models import tf_utils
 
-def FC(x, units, activations, bn, bn_decay, is_training, use_bias=True):
+def FC(x, units, activations, bn, bn_decay, is_training, use_bias=True, drop=None):
     if isinstance(units, int):
         units = [units]
         activations = [activations]
@@ -17,6 +17,8 @@ def FC(x, units, activations, bn, bn_decay, is_training, use_bias=True):
         activations = list(activations)
     assert type(units) == list
     for num_unit, activation in zip(units, activations):
+        if drop is not None:
+            x = tf_utils.dropout(x, drop=drop, is_training=is_training)
         x = tf_utils.conv2d(
             x, output_dims=num_unit, kernel_size=[1, 1], stride=[1, 1],
             padding='VALID', use_bias=use_bias, activation=activation,
@@ -60,13 +62,11 @@ def STEmbedding(SE, TE, T, D, bn, bn_decay, is_training):
         SE, units=[D, D], activations=[tf.nn.relu, None],
         bn=bn, bn_decay=bn_decay, is_training=is_training)
     # temporal embedding
-    TE = tf.add_n(TE)
-    # TE = tf.concat((TE), axis=-1)
+    TE = tf.concat((TE), axis=-1)
     TE = FC(
         TE, units=[D, D], activations=[tf.nn.relu, None],
         bn=bn, bn_decay=bn_decay, is_training=is_training)
     return tf.add(SE, TE)
-    # return tf.concat([SE, TE],axis=-1)
 
 def parse_index_file(filename):
     """Parse index file."""
@@ -221,22 +221,21 @@ def preprocess_adj(adj):
 
 
 
-def construct_feed_dict(x_s, adj, label_s, day, hour, minute, x_p, label_p, placeholders):
+def construct_feed_dict(xs =None, labels =None, xs_all =None, day_of_week=None, minute_of_day=None, adj=None, placeholders=None, sites=108, is_traning=True):
     """Construct feed dictionary."""
     feed_dict = dict()
-    feed_dict.update({placeholders['position']: np.array([[i for i in range(108)]],dtype=np.int32)})
-    feed_dict.update({placeholders['labels_s']: label_s})
-    feed_dict.update({placeholders['day']: day})
-    feed_dict.update({placeholders['hour']: hour})
-    feed_dict.update({placeholders['minute']: minute})
-    feed_dict.update({placeholders['features_s']: x_s})
-    feed_dict.update({placeholders['indices_i']: adj[0]})
-    feed_dict.update({placeholders['values_i']: adj[1]})
-    feed_dict.update({placeholders['dense_shape_i']: adj[2]})
-    feed_dict.update({placeholders['features_p']: x_p})
-    feed_dict.update({placeholders['labels_p']: label_p})
-    # feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
-    feed_dict.update({placeholders['num_features_nonzero']: x_s[0].shape})
+    feed_dict.update({placeholders['position']: np.array([[i for i in range(sites)]],dtype=np.int32)})
+    feed_dict.update({placeholders['labels']: labels})
+    feed_dict.update({placeholders['day_of_week']: day_of_week})
+    feed_dict.update({placeholders['minute_of_day']: minute_of_day})
+    feed_dict.update({placeholders['features']: xs})
+    feed_dict.update({placeholders['features_all']: xs_all})
+    if adj:
+        feed_dict.update({placeholders['indices_i']: adj[0]})
+        feed_dict.update({placeholders['values_i']: adj[1]})
+        feed_dict.update({placeholders['dense_shape_i']: adj[2]})
+    feed_dict.update({placeholders['num_features_nonzero']: xs[0].shape})
+    feed_dict.update({placeholders['is_training']: is_traning})
     return feed_dict
 
 
@@ -282,18 +281,31 @@ def describe(label, predict):
     # plt.title("the prediction of pm$_{2.5}", fontsize=17)
     plt.show()
 
+def mae_los(pred, label):
+    mask = tf.not_equal(label, 0)
+    mask = tf.cast(mask, tf.float32)
+    mask /= tf.reduce_mean(mask)
+    mask = tf.compat.v2.where(
+        condition = tf.math.is_nan(mask), x = 0., y = mask)
+    loss = tf.abs(tf.subtract(pred, label))
+    loss *= mask
+    loss = tf.compat.v2.where(
+        condition = tf.math.is_nan(loss), x = 0., y = loss)
+    loss = tf.reduce_mean(loss)
+    return loss
+
 def metric(pred, label):
     with np.errstate(divide='ignore', invalid='ignore'):
         mask = np.not_equal(label, 0)
         mask = mask.astype(np.float32)
         mask /= np.mean(mask)
+
         mae = np.abs(np.subtract(pred, label)).astype(np.float32)
         rmse = np.square(mae)
-        mape = np.divide(mae, label)
-        # mae = np.nan_to_num(mae * mask)
-        # wape = np.divide(np.sum(mae), np.sum(label))
+        mape = np.divide(mae, label.astype(np.float32))
+        mae = np.nan_to_num(mae * mask)
         mae = np.mean(mae)
-        # rmse = np.nan_to_num(rmse * mask)
+        rmse = np.nan_to_num(rmse * mask)
         rmse = np.sqrt(np.mean(rmse))
         mape = np.nan_to_num(mape * mask)
         mape = np.mean(mape)
@@ -302,9 +314,4 @@ def metric(pred, label):
         sse = np.sum((label - pred) ** 2)
         sst = np.sum((label - np.mean(label)) ** 2)
         r2 = 1 - sse / sst  # r2_score(y_actual, y_predicted, multioutput='raw_values')
-        print('mae is : %.6f'%mae)
-        print('rmse is : %.6f'%rmse)
-        print('mape is : %.6f'%mape)
-        print('r is : %.6f'%cor)
-        print('r$^2$ is : %.6f'%r2)
-    return mae, rmse, mape, cor, r2
+    return mae, rmse, mape

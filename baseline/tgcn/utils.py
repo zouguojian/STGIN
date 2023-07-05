@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import tensorflow as tf
+from inits import *
 import scipy.sparse as sp
-import numpy as np
 
 
 def normalized_adj(adj):
@@ -41,19 +40,31 @@ def construct_feed_dict(features, labels, placeholders):
     feed_dict.update({placeholders['features']: features})
     return feed_dict
 
+def mae_los(pred, label):
+    mask = tf.not_equal(label, 0)
+    mask = tf.cast(mask, tf.float32)
+    mask /= tf.reduce_mean(mask)
+    mask = tf.compat.v2.where(
+        condition = tf.math.is_nan(mask), x = 0., y = mask)
+    loss = tf.abs(tf.subtract(pred, label))
+    loss *= mask
+    loss = tf.compat.v2.where(
+        condition = tf.math.is_nan(loss), x = 0., y = loss)
+    loss = tf.reduce_mean(loss)
+    return loss
 
 def metric(pred, label):
     with np.errstate(divide='ignore', invalid='ignore'):
         mask = np.not_equal(label, 0)
         mask = mask.astype(np.float32)
         mask /= np.mean(mask)
+
         mae = np.abs(np.subtract(pred, label)).astype(np.float32)
         rmse = np.square(mae)
-        mape = np.divide(mae, label)
-        # mae = np.nan_to_num(mae * mask)
-        # wape = np.divide(np.sum(mae), np.sum(label))
+        mape = np.divide(mae, label.astype(np.float32))
+        mae = np.nan_to_num(mae * mask)
         mae = np.mean(mae)
-        # rmse = np.nan_to_num(rmse * mask)
+        rmse = np.nan_to_num(rmse * mask)
         rmse = np.sqrt(np.mean(rmse))
         mape = np.nan_to_num(mape * mask)
         mape = np.mean(mape)
@@ -62,9 +73,4 @@ def metric(pred, label):
         sse = np.sum((label - pred) ** 2)
         sst = np.sum((label - np.mean(label)) ** 2)
         r2 = 1 - sse / sst  # r2_score(y_actual, y_predicted, multioutput='raw_values')
-        print('mae is : %.6f'%mae)
-        print('rmse is : %.6f'%rmse)
-        print('mape is : %.6f'%mape)
-        print('r is : %.6f'%cor)
-        print('r$^2$ is : %.6f'%r2)
-    return mae, rmse, mape, cor, r2
+    return mae, rmse, mape

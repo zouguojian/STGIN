@@ -148,7 +148,8 @@ class Model(object):
         self.saver = tf.train.Saver(var_list=tf.trainable_variables())
 
     def re_current(self, a, max, min):
-        return [num * (max - min) + min for num in a]
+        return a * (max - min) + min
+        # return [num * (max - min) + min for num in a]
 
     def run_epoch(self):
             '''
@@ -241,26 +242,19 @@ class Model(object):
             pre_s_list.append(pre_s)
 
 
+        label_s_list = np.reshape(np.array(label_s_list, dtype=np.float32),
+                                [-1, self.para.site_num, self.para.output_length]).transpose([1, 0, 2])
+        pre_s_list = np.reshape(np.array(pre_s_list, dtype=np.float32),
+                                  [-1, self.para.site_num, self.para.output_length]).transpose([1, 0, 2])
         if self.para.normalize:
-            label_s_list = np.array(
-                [self.re_current(np.reshape(site_label, [-1]), max_s, min_s) for site_label in label_s_list])
-            pre_s_list = np.array(
-                [self.re_current(np.reshape(site_label, [-1]), max_s, min_s) for site_label in pre_s_list])
-        else:
-            label_s_list = np.array([np.reshape(site_label, [-1]) for site_label in label_s_list])
-            pre_s_list = np.array([np.reshape(site_label, [-1]) for site_label in pre_s_list])
+            label_s_list = self.re_current(label_s_list, max_s, min_s)
+            pre_s_list = self.re_current(pre_s_list, max_s, min_s)
 
         print('speed prediction result')
-        label_all = np.reshape(np.array(label_s_list), newshape=[self.para.site_num, -1, self.para.output_length])
-        predict_all = np.reshape(np.array(pre_s_list), newshape=[self.para.site_num, -1, self.para.output_length])
-
-        label_s_list = np.reshape(label_s_list, [-1])
-        pre_s_list = np.reshape(pre_s_list, [-1])
         mae, rmse, mape, cor, r2 = metric(pre_s_list, label_s_list)  # 产生预测指标
-
         for i in range(self.para.output_length):
-            print('in the %d time step, the evaluating indicator' % (i + 1))
-            metric(np.reshape(predict_all[:, :, i], [-1]), np.reshape(label_all[:, :, i], [-1]))
+            print('in the %d time step, the evaluating indicator'%(i+1))
+            metric(pre_s_list[:,:,i], label_s_list[:,:,i])
 
         # describe(label_list, predict_list)   #预测值可视化
         return mae
