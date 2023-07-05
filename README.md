@@ -45,26 +45,22 @@ $$
 $$
 {\rm MAPE}=\frac{100 \%}{\rm N} \sum_{i=1}^{\rm N}\left|\frac{\hat{\rm Y}_{i}-{\rm Y}_{i}}{{\rm Y}_{i}}\right|
 $$
-  
----
+
 
 ## PREDICTING PERFORMANCE COMPARISON 
 
 > Performance comparison of different approaches for long-term highway traffic speed prediction  
 
 <div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/1.png" width = "1100" height="500"/></div>
----
 
 ## INFLUENCE OF EACH COMPONENT
 
 > Performance of the different time steps prediction for distinguished variants  
 
 <div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/2.png" width = "700" height="300"/></div>
----
 
 ## COMPUTATION COST
 
 > Computation cost during the training and inference phases (* means the model train one time on the whole training set) 
 
 <div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/3.png" width = "800" height="400"/></div>
----
