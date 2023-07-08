@@ -63,4 +63,4 @@ $$
 
 > Computation cost during the training and inference phases (* means the model train one time on the whole training set) 
 
-<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/3.png" width = "800" height="300"/></div>
+<div align=center><img src ="https://github.com/zouguojian/STGIN/blob/main/figs/3.png" width = "800" height="350"/></div>
