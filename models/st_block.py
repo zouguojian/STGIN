@@ -216,8 +216,9 @@ class ST_Block():
     def spatiotemporal(self, bn, bn_decay, is_training, speed=None, STE=None, supports=None,mask=True, speed_all=None, adj =None):
         X = speed
         X_ALL=speed_all
+        HT = X
         for _ in range(self.para.num_blocks):
-            HT = temporalAttention(X + X_ALL[:,:self.input_length] + STE, STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training, mask=mask)
+            HT = temporalAttention(HT + X_ALL[:,:self.input_length] + STE, STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training, mask=mask)
 
         XL = tf.transpose(X + X_ALL[:,:self.input_length], perm=[0, 2, 1, 3])
         XL = tf.reshape(XL, shape=[-1, self.input_length, self.emb_size])
@@ -235,9 +236,9 @@ class ST_Block():
         # GAT =MultiHeadGATLayer(in_dim=self.emb_size,out_dim=self.emb_size)
         # HS = GAT([HS, adj], self.is_training)
         # HS = tf.reshape(HS, shape=[-1, self.input_length, self.site_num, self.emb_size])
-
+        HS = X
         for _ in range(self.para.num_blocks):
-            HS = spatialAttention(X + X_ALL[:,self.input_length:], STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training)
+            HS = spatialAttention(HS + X_ALL[:,self.input_length:], STE, self.num_heads, self.emb_size // self.num_heads, bn, bn_decay, is_training)
         XS = tf.reshape(X + X_ALL[:,self.input_length:] + STE, shape=[-1, self.site_num, self.emb_size * 1])
         gcn = self.model_func(self.placeholders,
                                 input_dim=self.emb_size * 1,
