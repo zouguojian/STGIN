@@ -31,7 +31,7 @@ We have added all the baseline models‘ results and codes to our GitHub page, i
 > 1.  MAE (Mean Absolute Error):
 
 
-![](http://latex.codecogs.com/svg.latex?MAE=\frac{1}{N}\sum_{1}^{N}\left| \hat{Y}-Y\right|)
+[![](http://latex.codecogs.com/svg.latex?MAE=\frac{1}{N}\sum_{1}^{N}\left| \hat{Y}-Y\right|)](https://latex.codecogs.com/svg.image?MAE=\frac{1}{N}\sum_{1}^{N}\left|\hat{Y}-Y\right|)
 ${\rm MAE}=\frac{1}{\rm N} \sum_{i=1}^{\rm N}\left|\hat{\rm Y}_{i}-{\rm Y}_{i}\right|$
 
 > 2. RMSE (Root Mean Square Error):
